@@ -1,0 +1,126 @@
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: emission-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
+      MYSQL_DATABASE: ${DB_NAME:-emission_assessment}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - emission-network
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: emission-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - emission-network
+    command: redis-server --appendonly yes
+
+  # InfluxDB时序数据库
+  influxdb:
+    image: influxdb:2.7
+    container_name: emission-influxdb
+    restart: always
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-admin123}
+      DOCKER_INFLUXDB_INIT_ORG: vehicle-emission
+      DOCKER_INFLUXDB_INIT_BUCKET: emission-data
+      TZ: Asia/Shanghai
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    networks:
+      - emission-network
+
+  # 后端服务
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: emission-backend
+    restart: always
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-emission_assessment}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_ORG: vehicle-emission
+      INFLUXDB_BUCKET: emission-data
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - influxdb
+    networks:
+      - emission-network
+
+  # 前端服务
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: emission-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - emission-network
+
+  # Python深度学习服务 - 车流量预测
+  ml-service:
+    build:
+      context: ../ml-service
+      dockerfile: Dockerfile
+    container_name: emission-ml-service
+    restart: always
+    environment:
+      MODEL_DIR: /app/models/traffic_flow/mlp-transformer-150
+      LOG_LEVEL: INFO
+    ports:
+      - "5001:5000"
+    networks:
+      - emission-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  mysql-data:
+  redis-data:
+  influxdb-data:
+
+networks:
+  emission-network:
+    driver: bridge

@@ -1,0 +1,133 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: emission-assessment
+
+  # 数据源配置
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:emission_assessment}?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      filters: stat,wall
+      web-stat-filter:
+        enabled: true
+        url-pattern: /*
+        exclusions: "*.js,*.gif,*.jpg,*.png,*.css,*.ico,/druid/*"
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        reset-enable: false
+        login-username: admin
+        login-password: admin
+
+  # Redis配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1
+          max-idle: 8
+          min-idle: 0
+
+  # Jackson配置
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+    serialization:
+      write-dates-as-timestamps: false
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# MyBatis Plus配置
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.vehicle.emission.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# InfluxDB配置
+influxdb:
+  url: ${INFLUXDB_URL:http://localhost:8086}
+  token: ${INFLUXDB_TOKEN:}
+  org: ${INFLUXDB_ORG:vehicle-emission}
+  bucket: ${INFLUXDB_BUCKET:emission-data}
+
+# 深度学习服务配置
+ml-service:
+  base-url: ${ML_SERVICE_URL:http://localhost:5001}
+  timeout: 30000
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:vehicle-emission-assessment-secret-key-2024}
+  expiration: 7200000  # 2小时
+  refresh-expiration: 604800000  # 7天
+
+# 日志配置
+logging:
+  level:
+    com.vehicle.emission: debug
+    org.springframework.web: info
+    org.springframework.security: debug
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n"
+  file:
+    name: logs/emission-assessment.log
+    max-size: 10MB
+    max-history: 30
+
+# 文件存储配置
+file:
+  upload-path: ${FILE_UPLOAD_PATH:./uploads}
+  max-size: 100MB
+  allowed-types:
+    - .xlsx
+    - .xls
+    - .csv
+    - .json
+    - .zip
+
+# 排放因子配置
+emission:
+  factors:
+    co: 0.5
+    nox: 0.3
+    pm25: 0.05
+    pm10: 0.06
+    voc: 0.2
